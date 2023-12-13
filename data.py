@@ -4,9 +4,11 @@ class Data():
     """
     用於處理資料處理
     """
-    def __init__(self,source = "Customer Data/customer_data.csv") -> pd.DataFrame:
+    def __init__(self,source = "Customer Data/customer_data.csv",source_area = "Customer Data/customer_zip.csv") -> pd.DataFrame:
         self.source = source
+        self.source_area = source_area
         self.data = pd.read_csv(self.source,encoding="big5")
+        self.data_area_people = pd.read_csv(self.source,encoding="big5")
     def read(self) -> pd.DataFrame:
         """
         讀取資料
@@ -32,7 +34,10 @@ class Data():
                 
                 # 計算該欄位NaN的數量
                 if (type(df[i].head(1)[0]) == "str" or type(df[i].head(1)[0]) == "object" or type(df[i].head(1)[0]) == "NaN") or type(df[i].head(1)[0]) == type(1.1):
-                    df[i] = df[i].fillna('NoData')
+                    if i == "客戶流失類別":
+                        df[i] = df[i].fillna('stayed')
+                    else:
+                        df[i] = df[i].fillna('NoData')
                 elif (type(df[i].head(1)[0]) == type(1)) :
                     df[i] = df[i].fillna(0)
             
