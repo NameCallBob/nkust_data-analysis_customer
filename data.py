@@ -72,37 +72,37 @@ class Data():
         for i in self.data.columns:
             print(df[i].isnull().value_counts())
 
-    def data_a_g_y(self):
+    def data_a_g_y(self) -> pd.DataFrame:
         data = self.read()
         data = data[[' 性別','年齡層']]
         data = data.assign(年齡層 =data.年齡層.astype(object))
         data = data.groupby(' 性別').value_counts().unstack(level=0)
         return data
     
-    def data_phone(self):
+    def data_phone(self) -> pd.DataFrame:
         data = self.read()
-        data = data[['優惠方式','電話服務 ','平均長途話費','多線路服務']]
+        data = data[['電話服務 ','平均長途話費','多線路服務']]
         return data
 
-    def data_net(self):
+    def data_net(self) -> pd.DataFrame :
         data = self.read()
         data = data[['網路服務','網路連線類型','平均下載量( GB)','線上安全服務','線上備份服務','設備保護計劃','技術支援計劃','電視節目','電影節目','音樂節目','無限資料下載']]
         print(data)
         return data
 
-    def data_money(self):
+    def data_money(self) -> pd.DataFrame :
         data = self.read()
-        data = data[['合約類型','無紙化計費','支付帳單方式','每月費用','總費用','總退款','額外數據費用',' 額外長途費用','總收入']]
+        data = data[['合約類型','優惠方式','無紙化計費','支付帳單方式','每月費用','總費用','總退款','額外數據費用',' 額外長途費用','總收入']]
         print(data)
         return data
     
-    def for_q2(self):
+    def for_q2(self) -> pd.DataFrame :
         data = self.read()
         return data[[
             '年齡層',' 性別','婚姻','城市','優惠方式','電話服務 ','網路服務','網路連線類型','合約類型','每月費用','客戶狀態','客戶流失類別','客戶離開原因'
         ]]
 
-    def data_customer_status(self):
+    def data_customer_status(self) -> pd.DataFrame :
         data = self.read()
         data = data[['客戶狀態','客戶流失類別','客戶離開原因']]
         print(data)
