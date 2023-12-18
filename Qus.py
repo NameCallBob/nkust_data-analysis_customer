@@ -140,6 +140,8 @@ class Qus(Data):
         numeric_features = ['額外數據費用', ' 額外長途費用','總收入','平均下載量( GB)','年齡']
 
         # 使用 ColumnTransformer 進行特徵轉換
+        # (MinMaxTransformer:所有數據都會除以該列絕對值後的最大值。 數據會縮放到到[-1,1]之間)
+        #（OrdinalEncoder:分類特徵 -> 整數特徵）
         preprocessor = ColumnTransformer(
             transformers=[
                 ('num', MinMaxScaler(), numeric_features),
@@ -155,8 +157,8 @@ class Qus(Data):
 
         # 設定分群數目，這裡假設分成3群
         if way_dict[way] == "kmeans":
-            self.__kmeans_group_choice(transformed_data,30)
-            self.__Q5_kmeans(data,transformed_data)
+            # self.__kmeans_group_choice(transformed_data,30)
+            self.__kmeans(data,transformed_data)
 
         elif way_dict[way] == "DBSCAN":
             # 看不出結果
@@ -185,7 +187,7 @@ class Qus(Data):
             ])
         transformed_data = preprocessor.fit_transform(feature)
         # self.__kmeans_group_choice(transformed_data,100)
-        self.__Q5_kmeans(data, transformed_data, "第七題")
+        self.__kmeans(data, transformed_data, name="第七題")
 
 
     def __get_best_params(self,X,y):
@@ -209,7 +211,41 @@ class Qus(Data):
         best_params = grid_search.best_params_
         print("最佳參數:", best_params)
     def __Q5_detail(self, data):
-        pass
+        """將Ｑ5的結果進行輸出後進行圖表分析"""
+        data = pd.read_csv("./res_5.csv")
+        # 資料分類
+        data_age = data[['Cluster','年齡']]
+        data_service = data[['Cluster','網路連線類型','線上安全服務','線上備份服務']]
+        data_money = data[['Cluster','每月費用','總收入']]
+        # 圖表解釋_組數、平均年齡
+        data_people = data_service.groupby('Cluster').size().reset_index(name="count")
+        data_age = data_age.groupby('Cluster').mean().sort_values('Cluster')
+        data_people = data_people.sort_values(by='count',ascending=True)
+        plt.figure(figsize=(20,10))
+        plt.bar(
+            data_people['Cluster'],
+            data_people['count'],
+        )
+        plt.title("依照網路相關特徵，Kmeans分群分佈")
+        plt.grid() ; plt.xticks(data_people['Cluster'])
+        for a,b in zip(data_people['Cluster'],data_people['count']):
+            plt.text(a, b+0.1, '%.0f' % b, ha='center', va= 'bottom',fontsize=12)
+        for a,b in zip(data_people['Cluster'],data_age['年齡']):
+            plt.text(a, b+0.3, '%0.2f' % b, ha='center', va= 'bottom',fontsize=12)
+        
+        plt.xlabel("組別");plt.ylabel("人數")
+        plt.show()
+        # 圖表解釋_平均收入、每月支付
+        data_money = data_money
+        """由圖可知 0,3,4 為人數最多，以下為他們的比例"""
+        gd = [0,3,4]
+        data_service = data_service[data_service['Cluster'].isin(gd)]
+        s_m = data_service.groupby('Cluster').value_counts()
+        print(s_m)
+        # s_md = data_service.groupby('Cluster').value_counts()
+        s_m.plot.bar()
+        plt.title("網路服務使用分佈圖")
+        plt.show()
 
     def __Q7_detail(self, data: pd.DataFrame):
         data = data[data['電話服務 '] == "Yes"]
@@ -222,14 +258,17 @@ class Qus(Data):
         print(data_people)
         data_area = data[['Cluster', '總費用']].groupby("Cluster").sum()
         print(data_area)
-        data_service = data[['Cluster', '郵遞區號', '多線路服務']
-                            ].groupby('Cluster').value_counts()
+        data_service = data[['Cluster','郵遞區號','多線路服務']]
+        data_service = data_service.pivot_table(columns="Cluster",index="多線路服務",values="郵遞區號")
+        
         plt.figure(figsize=(20, 8))
 
         # data_area.plot.bar()
         data_service.plot.bar()
-
+        print(data_service)
         plt.show()
+        
+
 
     def __lookdatascale(self,X_test,X_train):
         """查看訓練資料及預測資料是否比例使用一致，避免模型過度擬合的狀況"""
@@ -246,7 +285,7 @@ class Qus(Data):
         from sklearn.metrics import confusion_matrix
         print('混淆矩陣')
         print(confusion_matrix(y_test,y_pred))
-    def __kmeans(self,origin_data,transformed_data,x_label="年齡",y_label="總收入"):
+    def __kmeans(self,origin_data,transformed_data,x_label="年齡",y_label="總收入",name="第五題"):
         """
         處理Kmeans分群
         
@@ -255,8 +294,10 @@ class Qus(Data):
         transformed_data:特徵化資料
         x_label:圖x資料
         y_label:圖y資料
+        name:題目數
         """
-        kmeans = KMeans(n_clusters=20, random_state=0,n_init=100,max_iter=1000,init="k-means++")
+        kmeans = KMeans(n_clusters=5, random_state=0,
+                        n_init=100, max_iter=1000, init="k-means++")
         # 適應模型
         kmeans.fit(transformed_data)
         # 新增分群結果到原始資料中
@@ -265,14 +306,21 @@ class Qus(Data):
         # 視覺化散點圖
         plt.figure(figsize=(12, 8))
         # 繪製散點圖
-        sns.scatterplot(x=x_label, y=y_label, hue='Cluster', data=origin_data, palette='viridis', s=100)
+        sns.scatterplot(x=x_label, y=y_label, hue='Cluster',
+                        data=origin_data, palette='viridis', s=100)
+        # 繪製中心點
+        # centers = pca.inverse_transform(kmeans.cluster_centers_)
+        # plt.scatter(centers[:, 0], centers[:, 1], marker='X', s=200, c='red', label='Cluster Centers')
         plt.title('K-means 分群')
-        plt.xlabel('age');plt.ylabel('total')
+        plt.xlabel('郵遞區號')
+        plt.ylabel('總費用')
         plt.legend()
         plt.show()
-        # 對於分群後的資料進行處理
-        origin_data.to_csv('res_5.csv')
-        print("輸出結束")
+        print('分群圖生成完畢')
+        if name == "第五題":
+            self.__Q5_detail(origin_data)
+        elif name == "第七題":
+            self.__Q7_detail(origin_data)
 
     def __DBSCAN(self,origin_data,transformed_data):
         dbscan = DBSCAN(eps=3 , min_samples=2)  # 調整 eps 和 min_samples 參數
