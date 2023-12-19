@@ -7,18 +7,18 @@ from sklearn.model_selection import train_test_split #分開訓練及預測
 
 from sklearn.ensemble import RandomForestClassifier #隨機森林
 from sklearn.tree import DecisionTreeClassifier #決策樹模型
-# from sklearn.model_selection import GridSearchCVf
+from sklearn.model_selection import GridSearchCV
 
 from sklearn.impute import SimpleImputer
 # 降維
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans,DBSCAN #分群
-from sklearn.preprocessing import StandardScaler, OneHotEncoder , RobustScaler , OrdinalEncoder,MinMaxScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder , RobustScaler , OrdinalEncoder,MinMaxScaler,LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
 # 關聯
-
+from mlxtend.frequent_patterns import apriori,association_rules,fpgrowth
 
 # 模型評分
 from sklearn.metrics import accuracy_score, r2_score, mean_squared_error,silhouette_score
@@ -47,16 +47,18 @@ class Qus(Data):
         df_total = df_total.groupby('城市').sum().sort_values('總收入',ascending=False)
         # 輸出前三名的城市
         df_total = df_total.head(3)
+        
         # Los Angeles  San Diego Sacramento
         top3_city = ['Los Angeles','San Diego','Sacramento']
 
         df = df[df['城市'].isin(top3_city)]
         # 數值特徵資料
         df_num = df[['城市','每月費用','總費用','總退款','總收入']]
-        df_num = df_num.groupby('城市').sum()
+        df_num = df_num.groupby('城市').sum() ; print(df_num)
         # 類別特徵資料
-        df_cat = df[['城市','網路服務','網路連線類型','線上安全服務','線上備份服務','設備保護計劃','技術支援計劃','電視節目','電影節目','音樂節目','無限資料下載','合約類型','支付帳單方式',]]
-        df_cat = df_cat.groupby('城市').value_counts()
+        df_cat_net = df[['城市','網路連線類型','線上安全服務','線上備份服務','設備保護計劃','技術支援計劃']]
+        df_cat_tv = df[['城市','電視節目','電影節目','音樂節目','無限資料下載']]
+        df_cat_pho = df[['城市','電話服務 ','多線路服務']]
         """畫圖"""
         df_total.value_counts()
         df_total = df_total.reset_index()
@@ -65,7 +67,50 @@ class Qus(Data):
         plt.ylabel('金額');plt.xlabel('城市')
         plt.grid(axis='y')
         plt.show()
-        df_cat.plot.bar()
+        # 各服務的人數
+        df_people_use = df[['城市','電話服務 ','網路服務']]
+        df_people_use = df_people_use.groupby('城市').value_counts()
+        df_people_use = df_people_use.unstack(0).fillna(0)
+        print(df_people_use)
+        df_people_use.plot.bar()
+        plt.title('前三名城市＿各服務使用比例');plt.ylabel('人數')
+        plt.grid(axis='y')
+        plt.show()
+        # 電話服務
+        df_cat_pho = df_cat_pho.groupby('城市').value_counts()
+        df_cat_pho = df_cat_pho.unstack()
+        df_cat_pho.plot.bar()
+        plt.title('前三名城市＿電話使用分佈比例')
+        plt.grid(axis='y')
+        plt.ylabel('人數')
+        plt.show()
+        # 網路服務
+        df_cat_net[['城市','網路連線類型']].groupby('城市').value_counts().unstack().plot.bar()
+        plt.title("前三名城市_網路連線類型")
+        plt.ylabel('人數')
+        plt.show()
+        df_cat_net = df_cat_net[['城市','線上安全服務','線上備份服務','設備保護計劃','技術支援計劃']].groupby('城市').value_counts()
+        df_cat_net = df_cat_net.unstack(0)
+        print(df_cat_net)
+        df_cat_net.plot.bar()
+        plt.title('前三名城市＿網路服務分佈比例')
+        plt.ylabel('人數')
+        plt.grid(axis='y')
+        plt.show()
+        # 娛樂服務
+        df_cat_tv = df_cat_tv.groupby('城市').value_counts()
+        df_cat_tv = df_cat_tv.unstack(0)
+        df_cat_tv.plot.bar()
+        plt.grid(axis='y')
+        plt.title('前三名城市＿娛樂服務分佈比例')
+        plt.ylabel('人數')
+        plt.show()
+        # 付款方式
+        df_cat_payment = df[['城市','支付帳單方式']]
+        df_cat_payment = df_cat_payment.groupby('城市').value_counts().unstack(0)
+        df_cat_payment.plot.bar()
+        plt.title('前三名城市＿支付方式分佈比例');plt.ylabel('人數');plt.grid(axis='y')
+        plt.show()
         """
         過程：
         先將清洗完的資料以‘城市’為組別進行加總並透過排序取出總收入前三名的城市
@@ -244,6 +289,7 @@ class Qus(Data):
         print(frequent_itemsets1)
         print("\n關聯規則:")
         print(rules1)
+
     def Q5(self,way = 1):
         """
         \n題目:
@@ -293,10 +339,17 @@ class Qus(Data):
             raise KeyError(f"輸入參數{way}未知，請依照{way_dict}進行輸入")
     def Q6(self):
         """根據顧客年齡差異（分成老中青)，比較其使用公司服務的關聯規則的異同"""
+
         df = self.read()
         df = df[['年齡', '電話服務 ', '多線路服務', '網路服務', '線上安全服務',
                 '線上備份服務', '設備保護計劃', '技術支援計劃', '電視節目', '電影節目',
                 '音樂節目', '無限資料下載', '無紙化計費']]
+        
+        print(df.isnull().sum())
+
+        # 未啟用電話服務，多線路服務填補為‘No'；未啟用'網路服務'則後續服務填補為 "No"
+        df.fillna('No', inplace=True)
+        
 
         def age_class(age):
             if age <= 35:
@@ -322,6 +375,7 @@ class Qus(Data):
         df_middle['年齡層分類'] = label_encoder.fit_transform(df_middle['年齡層分類'])
         df_old['年齡層分類'] = label_encoder.fit_transform(df_old['年齡層分類'])
 
+
         # 進行獨熱編碼
         servers = ['電話服務 ', '多線路服務', '網路服務', '線上安全服務',
                 '線上備份服務', '設備保護計劃', '技術支援計劃', '電視節目',
@@ -332,7 +386,7 @@ class Qus(Data):
         df_old_encoded = pd.get_dummies(df_old, columns=servers)
 
         # 進行關聯規則分析
-        frequent_itemsets_young = fpgrowth(df_young_encoded, min_support=0.5, use_colnames=True)
+        frequent_itemsets_young = fpgrowth(df_young_encoded, min_support=0.6, use_colnames=True)
         rules_young = association_rules(frequent_itemsets_young, metric="lift", min_threshold=1.1)
         print("青年關聯規則：")
         print(rules_young)
@@ -341,7 +395,7 @@ class Qus(Data):
         df_rules.to_excel('./association_rules/rules_young_retail.xlsx')
         print('-'*50)
 
-        frequent_itemsets_middle = fpgrowth(df_middle_encoded, min_support=0.5, use_colnames=True)
+        frequent_itemsets_middle = fpgrowth(df_middle_encoded, min_support=0.6, use_colnames=True)
         rules_middle = association_rules(frequent_itemsets_middle, metric="lift", min_threshold=1.1)
         print("中年關聯規則：")
         print(rules_middle)
@@ -401,7 +455,6 @@ class Qus(Data):
         # self.__kmeans_group_choice(transformed_data,100)
         self.__kmeans(data, transformed_data, name="第七題")
 
-
     def __get_best_params(self,X,y):
         """此方法用於找出隨機森林的最優參數利於模型訓練"""
         param_grid = {
@@ -422,9 +475,9 @@ class Qus(Data):
         # 最佳參數
         best_params = grid_search.best_params_
         print("最佳參數:", best_params)
+
     def __Q5_detail(self, data):
         """將Ｑ5的結果進行輸出後進行圖表分析"""
-        data = pd.read_csv("./res_5.csv")
         # 資料分類
         data_age = data[['Cluster','年齡']]
         data_service = data[['Cluster','網路連線類型','線上安全服務','線上備份服務']]
@@ -452,41 +505,47 @@ class Qus(Data):
         """由圖可知 0,3,4 為人數最多，以下為他們的比例"""
         gd = [0,3,4]
         data_service = data_service[data_service['Cluster'].isin(gd)]
-        s_m = data_service.groupby('Cluster').value_counts()
-        print(s_m)
+        s_m = data_service.groupby('Cluster').value_counts().unstack(0)
         # s_md = data_service.groupby('Cluster').value_counts()
         s_m.plot.bar()
         plt.title("網路服務使用分佈圖")
         plt.show()
 
     def __Q7_detail(self, data: pd.DataFrame):
-        data = data[data['電話服務 '] == "Yes"]
+        data = data[(data['電話服務 '] == "Yes") & (data['網路服務'] == "No")]
         data = data[[
-            'Cluster', '年齡', '平均長途話費', '多線路服務', ' 額外長途費用', '總費用', '郵遞區號'
+            'Cluster', '年齡', '平均長途話費', '多線路服務', ' 額外長途費用', '總費用', '郵遞區號','城市','客戶狀態','總收入','優惠方式'
         ]]
         data_age = data[['Cluster', '年齡']].groupby('Cluster').mean()
         data_people = data[['Cluster', '年齡']].groupby('Cluster').count()
-        print(data_age)
-        print(data_people)
-        data_area = data[['Cluster','年齡','郵遞區號', '總費用']].pivot_table(index="Cluster",columns="郵遞區號",values="總費用")
-        print(data_area)
-        data_service = data[['Cluster','郵遞區號','多線路服務']]
-        # data_service = data_service.pivot_table(columns="Cluster",index="郵遞區號",values="多線路服務")
-        
-        plt.figure(figsize=(20, 8))
-
-        data_area.plot()
-        # data_service.plot.bar()
-        print(data_service)
+        data_price = data[['Cluster', '平均長途話費',' 額外長途費用', '總費用','總收入']].groupby('Cluster').sum()
+        data_service = data[['Cluster','多線路服務']].groupby('Cluster').value_counts().unstack(0)
+        data_people_type = data[['Cluster','客戶狀態']].groupby('Cluster').value_counts().unstack(0)
+        data_people_sales = data[['Cluster','優惠方式']].groupby("優惠方式").value_counts().unstack(0)
+        plt.figure(figsize=(20,12))
+        data_people_sales.plot.bar()
+        plt.title('各群體的優惠方式使用狀況');plt.ylabel("人數")
+        plt.grid(axis="y")
         plt.show()
-        
-
+        data_price.plot.bar()
+        plt.title('各群體的費用和收入分佈');plt.ylabel("金額")
+        plt.grid(axis="y")
+        plt.show()
+        data_service.plot.bar()
+        plt.title('各群體是否使用多線路服務');plt.ylabel("人數")
+        plt.grid(axis="y")
+        plt.show()
+        data_people_type.plot.bar()
+        plt.title('各群體的客戶狀態分佈');plt.ylabel("人數")
+        plt.grid(axis="y")
+        plt.show()
 
     def __lookdatascale(self,X_test,X_train):
         """查看訓練資料及預測資料是否比例使用一致，避免模型過度擬合的狀況"""
         import pandas as pd
         print(pd.Series(X_train).value_counts(normalize=True))
         print(pd.Series(X_test).value_counts(normalize=True))
+
     def __cross(self,model,X,y):
         """用於交叉驗證資料"""
         from sklearn.model_selection import cross_val_score
@@ -497,7 +556,7 @@ class Qus(Data):
         from sklearn.metrics import confusion_matrix
         print('混淆矩陣')
         print(confusion_matrix(y_test,y_pred))
-    def __kmeans(self,origin_data,transformed_data,x_label="年齡",y_label="總收入",name="第五題"):
+    def __kmeans(self,origin_data,transformed_data,name="第五題"):
         """
         處理Kmeans分群
         
@@ -511,6 +570,7 @@ class Qus(Data):
         kmeans = KMeans(n_clusters=5, random_state=0,
                         n_init=100, max_iter=1000, init="k-means++")
         # 適應模型
+        label = {"第五題":["年齡","總收入"],"第七題":['郵遞區號','總費用']}
         kmeans.fit(transformed_data)
         # 新增分群結果到原始資料中
         origin_data['Cluster'] = kmeans.labels_
@@ -518,14 +578,14 @@ class Qus(Data):
         # 視覺化散點圖
         plt.figure(figsize=(12, 8))
         # 繪製散點圖
-        sns.scatterplot(x=x_label, y=y_label, hue='Cluster',
+        sns.scatterplot(x=label[name][0], y=label[name][1], hue='Cluster',
                         data=origin_data, palette='viridis', s=100)
         # 繪製中心點
         # centers = pca.inverse_transform(kmeans.cluster_centers_)
         # plt.scatter(centers[:, 0], centers[:, 1], marker='X', s=200, c='red', label='Cluster Centers')
         plt.title('K-means 分群')
-        plt.xlabel('郵遞區號')
-        plt.ylabel('總費用')
+        plt.xlabel(label[name][0])
+        plt.ylabel(label[name][1])
         plt.legend()
         plt.show()
         print('分群圖生成完畢')
@@ -557,6 +617,7 @@ class Qus(Data):
         plt.plot(range(2,group_num),res)
         plt.title('elbow');plt.xlabel('No. cluster')
         plt.show()
+
     def Q8(self):
         import pandas as pd
         from sklearn.model_selection import train_test_split
@@ -662,5 +723,6 @@ class Qus(Data):
         # 將規則轉換為 DataFrame
         df_rules = pd.DataFrame(rules)
         print(df_rules)
-Qus().Q2()
-# Qus().test()
+# Qus().Q3()
+# Qus().Q5(1)
+Qus().Q7()
